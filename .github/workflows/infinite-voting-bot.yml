@@ -1,9 +1,9 @@
 name: ♾️ MAX VOTING BOT - 55min Sessions
 
 on:
-  workflow_dispatch:  # Manual trigger
+  workflow_dispatch:  # Allows manual trigger
   schedule:
-    - cron: '*/55 * * * *'  # Every 55min
+    - cron: '*/55 * * * *'  # Runs every 55 minutes
 
 env:
   BATCHSIZE: 250
@@ -15,24 +15,29 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: 🗃️ Setup Java 17
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'zulu'
           cache: 'maven'
 
-      - name: 🔨 Build JAR
+      - name: Build shading executable jar
         run: |
           mvn clean package -DskipTests
-          echo "JAR ready"; ls -la target/*.jar
+          echo "JAR ready:"
+          ls -la target/infinite-voting-bot-1.0-shaded.jar
 
-      - name: 🖥️ Install Chrome + Xvfb
+      - name: Install dependencies and XVFB for headless chrome
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y wget unzip xvfb chromium-browser libnss3 libxss1 libgbm1 libgtk-3-0 libx11-xcb1 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxtst6 libpangocairo-1.0-0 libpango-1.0-0 libcairo2 libatk1.0-0 libatk-bridge2.0-0 fonts-liberation libu2f-udev libvulkan1 libgdk-pixbuf2.0-0
+          sudo apt-get install -y xvfb chromium-browser libnss3 libxss1 libgbm1 libgtk-3-0 \
+            libx11-xcb1 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 \
+            libxtst6 libpangocairo-1.0-0 libpango-1.0-0 libcairo2 libatk1.0-0 libatk-bridge2.0-0 \
+            fonts-liberation libu2f-udev libvulkan1 libgdk-pixbuf2.0-0
 
       - name: ♾️ MAX VOTING SESSION - 55 Minutes Non-Stop
         env:
@@ -41,21 +46,21 @@ jobs:
           echo "🚀 MAX VOTING STARTED: $(date)"
           echo "📊 Target: ~250-400 votes per 55min session"
           
-          # Start virtual display
+          # Start virtual frame buffer for Chrome headless graphical support
           Xvfb :99 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset &
           sleep 2
           export DISPLAY=:99
           
-          # 🚀 RUN YOUR 28-LINE BOT (55min timeout)
+          # Run the voting bot with max timeout of 55 minutes
           timeout ${{ env.MAXRUNTIME }} \
             java -Xmx1g -Xms512m -XX:+UseG1GC \
             -jar target/infinite-voting-bot-1.0-shaded.jar 2>&1 | tee voting-log.txt
           
-          # Results
+          # Summarize votes cast in this session
           VOTES=$(grep -c "✅ VOTE" voting-log.txt || echo 0)
           echo "✅ SESSION COMPLETE | Votes: $VOTES | Next run: 3 minutes"
 
-      - name: 📤 Upload Logs
+      - name: Upload voting logs
         uses: actions/upload-artifact@v4
         with:
           name: voting-logs-${{ github.run_number }}
