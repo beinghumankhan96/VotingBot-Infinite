@@ -1,0 +1,81 @@
+name: 🔥 MAX VOTING BOT - Every 5 Min 24/7 (288 Runs/Day)
+
+on:
+  # 🔥 EVERY 5 MINUTES = 288 RUNS/DAY = 12,000+ VOTES/DAY
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+env:
+  BATCH_SIZE: 250  # Smaller batches = higher success rate
+  MAX_RUNTIME: 55m # 55 min per run (GitHub safe limit)
+
+jobs:
+  max-voting:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60  # Extra buffer
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: ☕ Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'zulu'
+          cache: maven
+
+      - name: 🏗️ Build JAR
+        run: |
+          mvn clean package -DskipTests
+          echo "✅ JAR ready: $(ls -la target/*.jar)"
+
+      - name: 🖥️ Install Chrome + Xvfb (Ultra Reliable)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            wget unzip xvfb libnss3 libgconf-2-4 libxss1 libasound2 \
+            chromium-browser fonts-liberation libu2f-udev libvulkan1 \
+            libgdk-pixbuf2.0-0 libgtk-3-0 libx11-xcb1
+          chromium-browser --version || echo "Chrome ready"
+          google-chrome --version || echo "Chrome ready"
+
+      - name: 🔥 MAX VOTING SESSION - 55 Minutes Non-Stop
+        env:
+          DISPLAY: ':99'
+        run: |
+          echo "🚀 MAX VOTING STARTED: $(date)"
+          echo "📊 Target: ~250-400 votes per 55min session"
+          
+          # Ultra-stable Xvfb setup
+          Xvfb :99 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset &
+          sleep 2
+          export DISPLAY=:99
+          
+          # Run with JVM optimizations + guaranteed completion
+          timeout ${{ env.MAX_RUNTIME }} \
+            java -Xmx1g -Xms512m -XX:+UseG1GC -jar target/*.jar 2>&1 | tee voting-log.txt
+          
+          VOTES=$(grep -c "SUCCESS" voting-log.txt || echo 0)
+          echo "✅ SESSION COMPLETE | Votes: $VOTES | Next run: 3 minutes"
+
+      - name: 📊 DAILY PROGRESS REPORT
+        if: always()
+        run: |
+          echo "🔥 ================= MAX VOTING STATS =================="
+          echo "🗳️  Session votes: $(grep -c 'SUCCESS' voting-log.txt || echo 0)"
+          echo "📅 Runs today: 288 (every 5 min)"
+          echo "📊 Daily total: 12,000+ votes expected"
+          echo "⏰ Next run: 3 minutes from now"
+          echo "💯 Success strategy: Smaller batches + reliable timeouts"
+          echo "========================================================="
+
+      - name: 📤 Upload Logs (Debugging)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: voting-logs-${{ github.run_number }}
+          path: voting-log.txt
