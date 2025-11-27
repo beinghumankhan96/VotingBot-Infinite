@@ -1,7 +1,7 @@
 name: 🔥 MAX VOTING BOT - Every 5 Min 24/7 (288 Runs/Day)
 
 on:
-  # 🔥 EVERY 5 MINUTES = 288 RUNS/DAY = 12,000+ VOTES/DAY
+  # EVERY 5 MINUTES = 288 RUNS/DAY = 12,000+ VOTES/DAY
   schedule:
     - cron: '*/5 * * * *'
   workflow_dispatch:
@@ -33,29 +33,28 @@ jobs:
           mvn clean package -DskipTests
           echo "✅ JAR ready: $(ls -la target/*.jar)"
 
-      - name: 🖥️ Install Chrome + Xvfb (Ultra Reliable)
+      - name: 🖥️ Install Chrome & Dependencies (FIXED)
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq \
-            wget unzip xvfb libnss3 libgconf-2-4 libxss1 libasound2 \
-            chromium-browser fonts-liberation libu2f-udev libvulkan1 \
-            libgdk-pixbuf2.0-0 libgtk-3-0 libx11-xcb1
-          chromium-browser --version || echo "Chrome ready"
-          google-chrome --version || echo "Chrome ready"
+          sudo apt-get install -y \
+            wget unzip xvfb libnss3 libxss1 libgbm1 \
+            libgtk-3-0 libx11-xcb1 libxcomposite1 libxcursor1 \
+            libxdamage1 libxext6 libxfixes3 libxi6 libxtst6 \
+            libpangocairo-1.0-0 libpango-1.0-0 libcairo2 \
+            libatk1.0-0 libatk-bridge2.0-0 chromium-browser \
+            fonts-liberation libu2f-udev libvulkan1 libgdk-pixbuf2.0-0
 
-      - name: 🔥 MAX VOTING SESSION - 55 Minutes Non-Stop
+      - name: ♾️ MAX VOTING SESSION - 55 Minutes Non-Stop
         env:
           DISPLAY: ':99'
         run: |
           echo "🚀 MAX VOTING STARTED: $(date)"
           echo "📊 Target: ~250-400 votes per 55min session"
           
-          # Ultra-stable Xvfb setup
           Xvfb :99 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset &
           sleep 2
           export DISPLAY=:99
           
-          # Run with JVM optimizations + guaranteed completion
           timeout ${{ env.MAX_RUNTIME }} \
             java -Xmx1g -Xms512m -XX:+UseG1GC -jar target/*.jar 2>&1 | tee voting-log.txt
           
