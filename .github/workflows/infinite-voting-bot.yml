@@ -3,7 +3,7 @@ name: 🚀 PROD Voting Bot v3.0
 on:
   workflow_dispatch:
   schedule:
-    - cron: '*/15 * * * *'  # Every 15 minutes
+    - cron: '*/15 * * * *'
 
 jobs:
   infinite-voting:
@@ -26,75 +26,47 @@ jobs:
         cache: maven
 
     - name: 🔨 Build
-      run: |
-        mvn clean package -DskipTests
-        echo "✅ JAR: $(ls -la target/*.jar)"
+      run: mvn clean package -DskipTests
 
     - name: 🖥️ Chromium + Xvfb
       run: |
         sudo apt-get update -qq
-        sudo apt-get install -y -qq xvfb chromium-browser fonts-liberation \
-          libasound2t64 libatk-bridge2.0-0 libatk1.0-0 libatspi2.0-0 libdrm2 \
-          libgbm1 libgtk-3-0t64 libgtk2.0-0t64 libnspr4 libnss3 libxcomposite1 \
-          libxdamage1 libxkbcommon0 libxrandr2 libxss1 xdg-utils
-        echo "✅ Browser stack ready"
+        sudo apt-get install -y -qq xvfb chromium-browser fonts-liberation libasound2t64 libatk-bridge2.0-0 libatk1.0-0 libatspi2.0-0 libdrm2 libgbm1 libgtk-3-0t64 libgtk2.0-0t64 libnspr4 libnss3 libxcomposite1 libxdamage1 libxkbcommon0 libxrandr2 libxss1 xdg-utils
 
     - name: 🤖 RUN BOT
+      env:
+        DISPLAY: :99
       run: |
-        # Start Xvfb in background
+        set -e
         Xvfb :99 -screen 0 1920x1080x24 -ac -noreset > xvfb.log 2>&1 &
         XVFB_PID=$!
         echo "Xvfb PID: $XVFB_PID"
         sleep 5
-        
-        # Run bot with timeout
-        timeout 50m java -jar target/infinite-voting-bot-3.0.jar > bot-output.log 2>&1 || true
-        
-        # Cleanup Xvfb
+        timeout 50m java -jar target/*.jar > bot-output.log 2>&1 || true
         kill $XVFB_PID 2>/dev/null || true
-        wait $XVFB_PID 2>/dev/null || true
-        
-        # Show results
-        echo "📊 RESULTS:"
-        cat voting-log.txt || echo "No votes log"
-      env:
-        DISPLAY: :99
-        BATCH_SIZE: ${{ env.BATCH_SIZE }}
-        MAX_RUNTIME: ${{ env.MAX_RUNTIME }}
+        echo "📊 RESULTS:"; cat voting-log.txt 2>/dev/null || echo "No votes log"
 
     - name: 📤 Artifacts
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: votes-${{ github.run_number }}-${{ github.run_id }}
+        name: votes-${{ github.run_number }}
         path: |
           target/*.jar
+          *.log
           voting-log.txt
-          bot-output.log
-          xvfb.log
-        retention-days: 30
 
     - name: 📊 Summary
       if: always()
       run: |
         if [ -f voting-log.txt ]; then
-          SUCCESS_VOTES=$(grep -c "VOTE SUCCESS" voting-log.txt || echo 0)
-          TOTAL_ATTEMPTS=$(grep -c "Vote #" voting-log.txt || echo 0)
-          [ $TOTAL_ATTEMPTS -gt 0 ] && RATE=$((SUCCESS_VOTES * 100 / TOTAL_ATTEMPTS)) || RATE=0
-          
-          echo "✅ SUCCESS: $SUCCESS_VOTES | 🔄 ATTEMPTS: $TOTAL_ATTEMPTS | 📈 RATE: ${RATE}%"
-          
-          echo "## 🎯 Voting Results" >> $GITHUB_STEP_SUMMARY
+          SUCCESS=$(grep -c "VOTE SUCCESS" voting-log.txt || echo 0)
+          TOTAL=$(grep -c "Vote #" voting-log.txt || echo 0)
+          RATE=$([ $TOTAL -gt 0 ] && echo $((SUCCESS * 100 / TOTAL)) || echo 0)
+          echo "✅ $SUCCESS/$TOTAL (${RATE}%)"
           echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| ✅ Success | $SUCCESS_VOTES |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🔄 Attempts | $TOTAL_ATTEMPTS |" >> $GITHUB_STEP_SUMMARY
-          echo "| 📈 Success Rate | ${RATE}% |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "#### Latest Logs:" >> $GITHUB_STEP_SUMMARY
-          tail -20 voting-log.txt >> $GITHUB_STEP_SUMMARY
-        else
-          echo "❌ No voting-log.txt found"
-          echo "## ❌ No Results" >> $GITHUB_STEP_SUMMARY
-          echo "No voting log generated" >> $GITHUB_STEP_SUMMARY
+          echo "| Success | $SUCCESS |" >> $GITHUB_STEP_SUMMARY
+          echo "| Attempts | $TOTAL |" >> $GITHUB_STEP_SUMMARY
+          echo "| Rate | ${RATE}% |" >> $GITHUB_STEP_SUMMARY
         fi
