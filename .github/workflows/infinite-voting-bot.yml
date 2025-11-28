@@ -35,8 +35,8 @@ jobs:
         sudo apt-get update -qq
         sudo apt-get install -y -qq xvfb chromium-browser fonts-liberation \
           libasound2t64 libatk-bridge2.0-0 libatk1.0-0 libatspi2.0-0 libdrm2 \
-          libgbm1 libgtk-3-0t64 libnspr4 libnss3 libxcomposite1 libxdamage1 \
-          libxkbcommon0 libxrandr2 libxss1 xdg-utils libgtk-3-0 libgtk2.0-0t64
+          libgbm1 libgtk-3-0t64 libgtk2.0-0t64 libnspr4 libnss3 libxcomposite1 \
+          libxdamage1 libxkbcommon0 libxrandr2 libxss1 xdg-utils
         echo "✅ Browser stack ready"
 
     - name: 🤖 RUN BOT
@@ -47,13 +47,14 @@ jobs:
         echo "Xvfb PID: $XVFB_PID"
         sleep 5
         
-        # Run bot with timeout and proper cleanup
+        # Run bot with timeout
         timeout 50m java -jar target/infinite-voting-bot-3.0.jar > bot-output.log 2>&1 || true
         
-        # Cleanup
+        # Cleanup Xvfb
         kill $XVFB_PID 2>/dev/null || true
         wait $XVFB_PID 2>/dev/null || true
         
+        # Show results
         echo "📊 RESULTS:"
         cat voting-log.txt || echo "No votes log"
       env:
@@ -80,7 +81,9 @@ jobs:
           SUCCESS_VOTES=$(grep -c "VOTE SUCCESS" voting-log.txt || echo 0)
           TOTAL_ATTEMPTS=$(grep -c "Vote #" voting-log.txt || echo 0)
           [ $TOTAL_ATTEMPTS -gt 0 ] && RATE=$((SUCCESS_VOTES * 100 / TOTAL_ATTEMPTS)) || RATE=0
+          
           echo "✅ SUCCESS: $SUCCESS_VOTES | 🔄 ATTEMPTS: $TOTAL_ATTEMPTS | 📈 RATE: ${RATE}%"
+          
           echo "## 🎯 Voting Results" >> $GITHUB_STEP_SUMMARY
           echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
@@ -91,5 +94,7 @@ jobs:
           echo "#### Latest Logs:" >> $GITHUB_STEP_SUMMARY
           tail -20 voting-log.txt >> $GITHUB_STEP_SUMMARY
         else
-          echo "No voting-log.txt found"
+          echo "❌ No voting-log.txt found"
+          echo "## ❌ No Results" >> $GITHUB_STEP_SUMMARY
+          echo "No voting log generated" >> $GITHUB_STEP_SUMMARY
         fi
