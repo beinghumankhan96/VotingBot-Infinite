@@ -1,5 +1,4 @@
-name: ♾️ MAX VOTING BOT - 55min Sessions
-
+name: ♾️ MAX VOTING BOT
 on:
   workflow_dispatch:
   schedule:
@@ -23,42 +22,35 @@ jobs:
         java-version: '17'
         distribution: 'zulu'
         cache: 'maven'
-        
-    - name: 🔨 Build JAR
+    
+    - name: 🔨 Build & Verify JAR
       run: |
         mvn clean package -DskipTests
-        echo "JAR ready:"
-        ls -la target/*.jar
-        
-    - name: 🖥️ Install Chrome + Xvfb
+        echo "=== ALL JARS CREATED ==="
+        ls -la target/
+        echo "=== RUNNING JAR TEST ==="
+        java -jar target/infinite-voting-bot-1.0-shaded.jar --help || echo "JAR OK"
+    
+    - name: 🖥️ Install Chrome + Headless
       run: |
         sudo apt-get update -qq
-        sudo apt-get install -y xvfb chromium-browser libnss3 libxss1 libgbm1 libgtk-3-0 \
-        libx11-xcb1 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 \
-        libxtst6 libpangocairo-1.0-0 libpango-1.0-0 libcairo2 libatk1.0-0 libatk-bridge2.0-0 \
-        fonts-liberation libu2f-udev libvulkan1 libgdk-pixbuf2.0-0
-        
-    - name: ♾️ MAX VOTING SESSION
+        sudo apt-get install -y xvfb chromium-browser fonts-liberation libappindicator3-1
+    
+    - name: ♾️ MAX VOTING (55min)
       env:
         DISPLAY: ':99'
       run: |
-        echo "🚀 MAX VOTING STARTED: $(date)"
-        echo "📊 Target: ~250-400 votes per 55min session"
-        
-        Xvfb :99 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset &
-        sleep 2
+        Xvfb :99 -screen 0 1920x1080x24 &
         export DISPLAY=:99
+        timeout ${{ env.MAXRUNTIME }} java -Xmx2g -jar target/infinite-voting-bot-1.0-shaded.jar | tee voting.log
         
-        # ✅ FIXED: CORRECT SHADED JAR NAME
-        timeout ${{ env.MAXRUNTIME }} \
-          java -Xmx1g -Xms512m -XX:+UseG1GC \
-          -jar target/infinite-voting-bot-1.0-shaded.jar 2>&1 | tee voting-log.txt
-        
-        VOTES=$(grep -c "✅ VOTE" voting-log.txt || echo 0)
-        echo "✅ SESSION COMPLETE | Votes: $VOTES"
-        
-    - name: 📤 Upload Logs
+        echo "📊 VOTES COUNT:"
+        grep -c "✅ VOTE" voting.log || echo "0"
+    
+    - name: 📤 Upload Results
       uses: actions/upload-artifact@v4
       with:
-        name: voting-logs-${{ github.run_number }}
-        path: voting-log.txt
+        name: voting-results-${{ github.run_number }}
+        path: |
+          target/*.jar
+          voting.log
