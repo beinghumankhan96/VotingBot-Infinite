@@ -14,7 +14,7 @@ import java.time.format.DateTimeFormatter;
 import java.io.FileWriter;
 import java.util.List;
 
-public class Main {
+class InfiniteVotingBot {
     private static final String TARGET_URL = "https://belagaviartfestival.com/belagavi-art-festival-gallery/?cid=1252&cac=submission&ctx=page&cm=0&sid=4501";
     private static final String LOG_FILE = "voting-log.txt";
     private static WebDriver driver;
