@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 55
 
     env:
-      BATCH_SIZE: 200
+      BATCH_SIZE: 300
       MAX_RUNTIME: 50m
 
     steps:
