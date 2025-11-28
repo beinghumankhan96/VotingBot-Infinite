@@ -33,23 +33,31 @@ jobs:
     - name: 🖥️ Chromium + Xvfb
       run: |
         sudo apt-get update -qq
-        sudo apt-get install -y -qq xvfb chromium-browser fonts-liberation libasound2t64 libatk-bridge2.0-0 libatk1.0-0 libatspi2.0-0 libdrm2 libgbm1 libgtk-3-0 libnspr4 libnss3 libxcomposite1 libxdamage1 libxkbcommon0 libxrandr2 libxss1 xdg-utils
+        sudo apt-get install -y -qq xvfb chromium-browser fonts-liberation \
+          libasound2t64 libatk-bridge2.0-0 libatk1.0-0 libatspi2.0-0 libdrm2 \
+          libgbm1 libgtk-3-0t64 libnspr4 libnss3 libxcomposite1 libxdamage1 \
+          libxkbcommon0 libxrandr2 libxss1 xdg-utils libgtk-3-0 libgtk2.0-0t64
         echo "✅ Browser stack ready"
 
     - name: 🤖 RUN BOT
       run: |
-        export DISPLAY=:99
+        # Start Xvfb in background
         Xvfb :99 -screen 0 1920x1080x24 -ac -noreset > xvfb.log 2>&1 &
         XVFB_PID=$!
+        echo "Xvfb PID: $XVFB_PID"
         sleep 5
         
-        timeout 50m java -jar target/infinite-voting-bot-3.0.jar > bot-output.log 2>&1
+        # Run bot with timeout and proper cleanup
+        timeout 50m java -jar target/infinite-voting-bot-3.0.jar > bot-output.log 2>&1 || true
+        
+        # Cleanup
+        kill $XVFB_PID 2>/dev/null || true
+        wait $XVFB_PID 2>/dev/null || true
         
         echo "📊 RESULTS:"
         cat voting-log.txt || echo "No votes log"
-        echo "🤖 Xvfb PID: $XVFB_PID"
-        kill $XVFB_PID 2>/dev/null || true
       env:
+        DISPLAY: :99
         BATCH_SIZE: ${{ env.BATCH_SIZE }}
         MAX_RUNTIME: ${{ env.MAX_RUNTIME }}
 
@@ -71,14 +79,17 @@ jobs:
         if [ -f voting-log.txt ]; then
           SUCCESS_VOTES=$(grep -c "VOTE SUCCESS" voting-log.txt || echo 0)
           TOTAL_ATTEMPTS=$(grep -c "Vote #" voting-log.txt || echo 0)
-          echo "✅ SUCCESS: $SUCCESS_VOTES | 🔄 ATTEMPTS: $TOTAL_ATTEMPTS"
+          [ $TOTAL_ATTEMPTS -gt 0 ] && RATE=$((SUCCESS_VOTES * 100 / TOTAL_ATTEMPTS)) || RATE=0
+          echo "✅ SUCCESS: $SUCCESS_VOTES | 🔄 ATTEMPTS: $TOTAL_ATTEMPTS | 📈 RATE: ${RATE}%"
           echo "## 🎯 Voting Results" >> $GITHUB_STEP_SUMMARY
           echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| ✅ Success | $SUCCESS_VOTES |" >> $GITHUB_STEP_SUMMARY
           echo "| 🔄 Attempts | $TOTAL_ATTEMPTS |" >> $GITHUB_STEP_SUMMARY
-          echo "| 📈 Success Rate | $((SUCCESS_VOTES * 100 / TOTAL_ATTEMPTS))% |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📈 Success Rate | ${RATE}% |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "#### Latest Logs:" >> $GITHUB_STEP_SUMMARY
           tail -20 voting-log.txt >> $GITHUB_STEP_SUMMARY
+        else
+          echo "No voting-log.txt found"
         fi
