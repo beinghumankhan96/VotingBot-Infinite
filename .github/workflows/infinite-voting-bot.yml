@@ -1,9 +1,9 @@
 name: ♾️ MAX VOTING BOT - 55min Sessions
 
 on:
-  workflow_dispatch:  # Allows manual trigger
+  workflow_dispatch:
   schedule:
-    - cron: '*/55 * * * *'  # Runs every 55 minutes
+    - cron: '*/55 * * * *'
 
 env:
   BATCHSIZE: 250
@@ -13,55 +13,52 @@ jobs:
   max-voting:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-
+    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'zulu'
-          cache: 'maven'
-
-      - name: Build shading executable jar
-        run: |
-          mvn clean package -DskipTests
-          echo "JAR ready:"
-          ls -la target/infinite-voting-bot-1.0-shaded.jar
-
-      - name: Install dependencies and XVFB for headless chrome
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y xvfb chromium-browser libnss3 libxss1 libgbm1 libgtk-3-0 \
-            libx11-xcb1 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 \
-            libxtst6 libpangocairo-1.0-0 libpango-1.0-0 libcairo2 libatk1.0-0 libatk-bridge2.0-0 \
-            fonts-liberation libu2f-udev libvulkan1 libgdk-pixbuf2.0-0
-
-      - name: ♾️ MAX VOTING SESSION - 55 Minutes Non-Stop
-        env:
-          DISPLAY: ':99'
-        run: |
-          echo "🚀 MAX VOTING STARTED: $(date)"
-          echo "📊 Target: ~250-400 votes per 55min session"
-          
-          # Start virtual frame buffer for Chrome headless graphical support
-          Xvfb :99 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset &
-          sleep 2
-          export DISPLAY=:99
-          
-          # Run the voting bot with max timeout of 55 minutes
-          timeout ${{ env.MAXRUNTIME }} \
-            java -Xmx1g -Xms512m -XX:+UseG1GC \
-            -jar target/infinite-voting-bot-1.0-shaded.jar 2>&1 | tee voting-log.txt
-          
-          # Summarize votes cast in this session
-          VOTES=$(grep -c "✅ VOTE" voting-log.txt || echo 0)
-          echo "✅ SESSION COMPLETE | Votes: $VOTES | Next run: 3 minutes"
-
-      - name: Upload voting logs
-        uses: actions/upload-artifact@v4
-        with:
-          name: voting-logs-${{ github.run_number }}
-          path: voting-log.txt
+    - uses: actions/checkout@v4
+    
+    - name: 🗃️ Setup Java 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'zulu'
+        cache: 'maven'
+        
+    - name: 🔨 Build JAR
+      run: |
+        mvn clean package -DskipTests
+        echo "JAR ready:"
+        ls -la target/*.jar
+        
+    - name: 🖥️ Install Chrome + Xvfb
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y xvfb chromium-browser libnss3 libxss1 libgbm1 libgtk-3-0 \
+        libx11-xcb1 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 \
+        libxtst6 libpangocairo-1.0-0 libpango-1.0-0 libcairo2 libatk1.0-0 libatk-bridge2.0-0 \
+        fonts-liberation libu2f-udev libvulkan1 libgdk-pixbuf2.0-0
+        
+    - name: ♾️ MAX VOTING SESSION
+      env:
+        DISPLAY: ':99'
+      run: |
+        echo "🚀 MAX VOTING STARTED: $(date)"
+        echo "📊 Target: ~250-400 votes per 55min session"
+        
+        Xvfb :99 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset &
+        sleep 2
+        export DISPLAY=:99
+        
+        # ✅ FIXED: CORRECT SHADED JAR NAME
+        timeout ${{ env.MAXRUNTIME }} \
+          java -Xmx1g -Xms512m -XX:+UseG1GC \
+          -jar target/infinite-voting-bot-1.0-shaded.jar 2>&1 | tee voting-log.txt
+        
+        VOTES=$(grep -c "✅ VOTE" voting-log.txt || echo 0)
+        echo "✅ SESSION COMPLETE | Votes: $VOTES"
+        
+    - name: 📤 Upload Logs
+      uses: actions/upload-artifact@v4
+      with:
+        name: voting-logs-${{ github.run_number }}
+        path: voting-log.txt
