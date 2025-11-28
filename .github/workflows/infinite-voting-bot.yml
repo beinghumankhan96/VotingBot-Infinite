@@ -33,7 +33,7 @@ jobs:
     - name: 🖥️ Chromium + Xvfb
       run: |
         sudo apt-get update -qq
-        sudo apt-get install -y -qq xvfb chromium-browser fonts-liberation libasound2 libatk-bridge2.0-0 libatk1.0-0 libatspi2.0-0 libdrm2 libgbm1 libgtk-3-0 libnspr4 libnss3 libxcomposite1 libxdamage1 libxkbcommon0 libxrandr2 libxss1 xdg-utils
+        sudo apt-get install -y -qq xvfb chromium-browser fonts-liberation libasound2t64 libatk-bridge2.0-0 libatk1.0-0 libatspi2.0-0 libdrm2 libgbm1 libgtk-3-0 libnspr4 libnss3 libxcomposite1 libxdamage1 libxkbcommon0 libxrandr2 libxss1 xdg-utils
         echo "✅ Browser stack ready"
 
     - name: 🤖 RUN BOT
