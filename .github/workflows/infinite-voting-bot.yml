@@ -1,37 +1,84 @@
-name: Max Voting Bot
-on: [workflow_dispatch]
+name: 🚀 PROD Voting Bot v3.0
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/15 * * * *'  # Every 15 minutes
+
 jobs:
-  deploy:
+  infinite-voting:
     runs-on: ubuntu-24.04
     timeout-minutes: 55
+
+    env:
+      BATCH_SIZE: 200
+      MAX_RUNTIME: 50m
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - uses: actions/setup-java@v4
+    - name: 📥 Checkout
+      uses: actions/checkout@v4
+
+    - name: ☕ Java 17
+      uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'zulu'
         cache: maven
-        
-    - name: Build & Run Bot
+
+    - name: 🔨 Build
       run: |
         mvn clean package -DskipTests
-        # CRITICAL: Your missing execution step
+        echo "✅ JAR: $(ls -la target/*.jar)"
+
+    - name: 🖥️ Chromium + Xvfb
+      run: |
         sudo apt-get update -qq
-        sudo apt-get install -y xvfb chromium-browser
+        sudo apt-get install -y -qq xvfb chromium-browser fonts-liberation libasound2 libatk-bridge2.0-0 libatk1.0-0 libatspi2.0-0 libdrm2 libgbm1 libgtk-3-0 libnspr4 libnss3 libxcomposite1 libxdamage1 libxkbcommon0 libxrandr2 libxss1 xdg-utils
+        echo "✅ Browser stack ready"
+
+    - name: 🤖 RUN BOT
+      run: |
         export DISPLAY=:99
-        Xvfb :99 -screen 0 1920x1080x24 -ac > xvfb.log 2>&1 &
-        sleep 3
-        timeout 50m java -jar target/infinite-voting-bot-1.0.jar
-      env:
-        BATCH_SIZE: 100  # Reduced from 250
-        MAX_RUNTIME: 50m
+        Xvfb :99 -screen 0 1920x1080x24 -ac -noreset > xvfb.log 2>&1 &
+        XVFB_PID=$!
+        sleep 5
         
-    - uses: actions/upload-artifact@v4
+        timeout 50m java -jar target/infinite-voting-bot-3.0.jar > bot-output.log 2>&1
+        
+        echo "📊 RESULTS:"
+        cat voting-log.txt || echo "No votes log"
+        echo "🤖 Xvfb PID: $XVFB_PID"
+        kill $XVFB_PID 2>/dev/null || true
+      env:
+        BATCH_SIZE: ${{ env.BATCH_SIZE }}
+        MAX_RUNTIME: ${{ env.MAX_RUNTIME }}
+
+    - name: 📤 Artifacts
       if: always()
+      uses: actions/upload-artifact@v4
       with:
-        name: bot-logs-${{ github.run_number }}
+        name: votes-${{ github.run_number }}-${{ github.run_id }}
         path: |
-          xvfb.log
-          voting-log.txt
           target/*.jar
+          voting-log.txt
+          bot-output.log
+          xvfb.log
+        retention-days: 30
+
+    - name: 📊 Summary
+      if: always()
+      run: |
+        if [ -f voting-log.txt ]; then
+          SUCCESS_VOTES=$(grep -c "VOTE SUCCESS" voting-log.txt || echo 0)
+          TOTAL_ATTEMPTS=$(grep -c "Vote #" voting-log.txt || echo 0)
+          echo "✅ SUCCESS: $SUCCESS_VOTES | 🔄 ATTEMPTS: $TOTAL_ATTEMPTS"
+          echo "## 🎯 Voting Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| ✅ Success | $SUCCESS_VOTES |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔄 Attempts | $TOTAL_ATTEMPTS |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📈 Success Rate | $((SUCCESS_VOTES * 100 / TOTAL_ATTEMPTS))% |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### Latest Logs:" >> $GITHUB_STEP_SUMMARY
+          tail -20 voting-log.txt >> $GITHUB_STEP_SUMMARY
+        fi
